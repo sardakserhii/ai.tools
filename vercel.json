@@ -1,0 +1,21 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "api/*.ts",
+            "use": "@vercel/node"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/api/run-daily-digest",
+            "dest": "/api/run-daily-digest.ts"
+        }
+    ],
+    "crons": [
+        {
+            "path": "/api/run-daily-digest",
+            "schedule": "0 6 * * *"
+        }
+    ]
+}

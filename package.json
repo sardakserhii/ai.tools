@@ -1,0 +1,40 @@
+{
+    "name": "ai-news-aggregator",
+    "version": "0.1.0",
+    "description": "AI tools news aggregator with Supabase and Vercel",
+    "type": "module",
+    "scripts": {
+        "dev": "tsx api/run-daily-digest.ts",
+        "build": "tsc",
+        "start": "node dist/api/run-daily-digest.js",
+        "seed": "tsx scripts/seed-tools.ts",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.49.0",
+        "cheerio": "^1.1.2",
+        "dayjs": "^1.11.13",
+        "dotenv": "^16.6.1",
+        "fast-xml-parser": "^5.3.2",
+        "https-proxy-agent": "^7.0.6",
+        "zod": "^3.25.76"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.39.0",
+        "@types/cheerio": "^0.22.35",
+        "@types/node": "^22.19.1",
+        "@vercel/node": "^5.5.12",
+        "eslint": "^9.39.0",
+        "globals": "^16.2.0",
+        "prettier": "^3.5.3",
+        "tsx": "^4.19.4",
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.34.1"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "author": "",
+    "license": "MIT"
+}
