@@ -39,6 +39,17 @@ const envSchema = z.object({
         .string()
         .transform((val) => parseInt(val, 10))
         .default("2"),
+
+    // OpenAI settings (optional if using Gemini)
+    OPENAI_API_KEY: z.string().optional(),
+    OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+
+    // Google Gemini settings
+    GEMINI_API_KEY: z.string().optional(),
+    GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
+
+    // LLM Provider: "openai" or "gemini"
+    LLM_PROVIDER: z.enum(["openai", "gemini"]).default("gemini"),
 });
 
 /**
@@ -70,6 +81,14 @@ function loadConfig() {
         // Fetch settings
         fetchTimeoutMs: parsed.data.FETCH_TIMEOUT_MS,
         fetchRetryCount: parsed.data.FETCH_RETRY_COUNT,
+        // OpenAI settings
+        openaiApiKey: parsed.data.OPENAI_API_KEY,
+        openaiModel: parsed.data.OPENAI_MODEL,
+        // Gemini settings
+        geminiApiKey: parsed.data.GEMINI_API_KEY,
+        geminiModel: parsed.data.GEMINI_MODEL,
+        // LLM Provider
+        llmProvider: parsed.data.LLM_PROVIDER,
     };
 }
 

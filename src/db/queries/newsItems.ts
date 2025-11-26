@@ -60,9 +60,9 @@ export async function getTodayNews(
     let query = supabase
         .from("news_items")
         .select("*")
-        .gte("created_at", startOfDay)
-        .lte("created_at", endOfDay)
-        .order("created_at", { ascending: false });
+        .gte("published_at", startOfDay)
+        .lte("published_at", endOfDay)
+        .order("published_at", { ascending: false });
 
     if (importanceFilter && importanceFilter.length > 0) {
         query = query.in("importance", importanceFilter);

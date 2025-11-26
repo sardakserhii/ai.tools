@@ -12,7 +12,12 @@ import { formatDateISO } from "../src/utils/dates.js";
  *
  * Date handling:
  * - Uses UTC timezone for consistency across deployments
- * - The pipeline processes news from the last 24 hours
+ * - The pipeline processes news from the last 24 hours (yesterday)
+ * - If digest already exists for the date, it returns from cache
+ *
+ * Query parameters:
+ * - force=true: Force regenerate digest even if it already exists
+ * - date=YYYY-MM-DD: Process specific date instead of yesterday
  *
  * @param req Vercel request object
  * @param res Vercel response object
@@ -32,21 +37,36 @@ export default async function handler(
     console.log(`[api] Time: ${new Date().toISOString()}`);
 
     try {
-        // Use current UTC date for the pipeline
-        // Note: Using UTC ensures consistency regardless of deployment region
+        // Parse query parameters
+        const forceRegenerate = req.query.force === "true";
+        const dateParam = req.query.date as string | undefined;
+
+        let targetDate: Date | undefined;
+        if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+            targetDate = new Date(dateParam);
+        }
+
         const now = new Date();
-        const dateStr = formatDateISO(now);
+        const dateStr = targetDate
+            ? formatDateISO(targetDate)
+            : formatDateISO(new Date(now.getTime() - 24 * 60 * 60 * 1000)); // yesterday
 
         console.log(`[api] Running pipeline for date: ${dateStr} (UTC)`);
+        console.log(`[api] Force regenerate: ${forceRegenerate}`);
 
         // Run the pipeline
-        const result = await runDailyDigestPipeline(now);
+        const result = await runDailyDigestPipeline({
+            targetDate,
+            forceRegenerate,
+        });
 
         // Return success response
         res.status(200).json({
             ok: result.ok,
             totalNews: result.totalNews,
             toolsProcessed: result.toolsProcessed,
+            digestGenerated: result.digestGenerated,
+            digestFromCache: result.digestFromCache,
             date: dateStr,
             timestamp: now.toISOString(),
             errors: result.errors.length > 0 ? result.errors : undefined,
