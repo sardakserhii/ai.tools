@@ -20,40 +20,46 @@ const envSchema = z.object({
         .min(1, "SUPABASE_SERVICE_ROLE_KEY is required"),
 
     NODE_ENV: z
-        .enum(["development", "production", "test"])
+        .string()
+        .transform((val) => val.trim())
+        .pipe(z.enum(["development", "production", "test"]))
         .default("development"),
 
     // Proxy settings (optional)
     PROXY_URL: z.string().url().optional(),
     PROXY_ENABLED: z
         .string()
-        .transform((val) => val === "true")
+        .transform((val) => val.trim() === "true")
         .default("false"),
 
     // Fetch settings
     FETCH_TIMEOUT_MS: z
         .string()
-        .transform((val) => parseInt(val, 10))
+        .transform((val) => parseInt(val.trim(), 10))
         .default("15000"),
     FETCH_RETRY_COUNT: z
         .string()
-        .transform((val) => parseInt(val, 10))
+        .transform((val) => parseInt(val.trim(), 10))
         .default("2"),
 
     // OpenAI settings (optional if using Gemini)
     OPENAI_API_KEY: z.string().optional(),
-    OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+    OPENAI_MODEL: z.string().transform((val) => val.trim()).default("gpt-4o-mini"),
 
     // Google Gemini settings
     GEMINI_API_KEY: z.string().optional(),
-    GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
+    GEMINI_MODEL: z.string().transform((val) => val.trim()).default("gemini-1.5-flash"),
 
     // LLM Provider: "openai" or "gemini"
-    LLM_PROVIDER: z.enum(["openai", "gemini"]).default("gemini"),
+    LLM_PROVIDER: z
+        .string()
+        .transform((val) => val.trim())
+        .pipe(z.enum(["openai", "gemini"]))
+        .default("gemini"),
 
     // Telegram settings
-    TELEGRAM_BOT_TOKEN: z.string().optional(),
-    TELEGRAM_CHANNEL_ID: z.string().optional(),
+    TELEGRAM_BOT_TOKEN: z.string().transform((val) => val.trim()).optional(),
+    TELEGRAM_CHANNEL_ID: z.string().transform((val) => val.trim()).optional(),
 });
 
 /**

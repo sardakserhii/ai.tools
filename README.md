@@ -24,14 +24,14 @@
 
 ## 🛠 Tech Stack
 
-| Category | Technologies |
-|----------|-------------|
-| **Runtime** | Node.js 20+, TypeScript 5.8 |
-| **Database** | Supabase (PostgreSQL) |
-| **Deployment** | Vercel Serverless Functions |
+| Category          | Technologies                |
+| ----------------- | --------------------------- |
+| **Runtime**       | Node.js 20+, TypeScript 5.8 |
+| **Database**      | Supabase (PostgreSQL)       |
+| **Deployment**    | Vercel Serverless Functions |
 | **LLM Providers** | Google Gemini, OpenAI GPT-4 |
-| **Parsing** | Cheerio, fast-xml-parser |
-| **Validation** | Zod |
+| **Parsing**       | Cheerio, fast-xml-parser    |
+| **Validation**    | Zod                         |
 
 ## 📁 Project Structure
 
@@ -125,15 +125,15 @@ Apply migrations in your Supabase SQL Editor:
 
 ### CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `npx tsx scripts/run-pipeline.ts` | Run full pipeline (fetch news + generate digest) |
-| `npx tsx scripts/run-pipeline.ts 2025-01-15` | Process specific date |
-| `npx tsx scripts/run-pipeline.ts --force` | Force regenerate digest |
-| `npx tsx scripts/publish-telegram.ts` | Publish today's digest to Telegram |
-| `npx tsx scripts/publish-telegram.ts --test` | Test Telegram connection |
-| `npx tsx scripts/view-digest.ts` | View latest digest |
-| `npx tsx scripts/view-digest.ts 2025-01-15` | View specific date's digest |
+| Command                                      | Description                                      |
+| -------------------------------------------- | ------------------------------------------------ |
+| `npx tsx scripts/run-pipeline.ts`            | Run full pipeline (fetch news + generate digest) |
+| `npx tsx scripts/run-pipeline.ts 2025-01-15` | Process specific date                            |
+| `npx tsx scripts/run-pipeline.ts --force`    | Force regenerate digest                          |
+| `npx tsx scripts/publish-telegram.ts`        | Publish today's digest to Telegram               |
+| `npx tsx scripts/publish-telegram.ts --test` | Test Telegram connection                         |
+| `npx tsx scripts/view-digest.ts`             | View latest digest                               |
+| `npx tsx scripts/view-digest.ts 2025-01-15`  | View specific date's digest                      |
 
 ### API Endpoints
 
@@ -152,10 +152,12 @@ The service runs automatically via Vercel Cron at 06:00 UTC daily:
 ```json
 // vercel.json
 {
-  "crons": [{
-    "path": "/api/run-daily-digest?telegram=true",
-    "schedule": "0 6 * * *"
-  }]
+    "crons": [
+        {
+            "path": "/api/run-daily-digest?telegram=true",
+            "schedule": "0 6 * * *"
+        }
+    ]
 }
 ```
 
@@ -164,35 +166,41 @@ The service runs automatically via Vercel Cron at 06:00 UTC daily:
 The system includes multiple parser types:
 
 ### RSS/Atom Parser
+
 Automatically detects and parses standard feeds.
 
 ### HTML Blog Parser
+
 Universal fallback parser using multiple CSS selectors.
 
 ### Custom Parsers
+
 Specialized parsers for specific sites:
 
-| Parser | Sites |
-|--------|-------|
-| OpenAI | openai.com/news |
-| Anthropic | anthropic.com/news |
-| Google | blog.google, ai.google |
-| Microsoft | microsoft.com/*/blog |
-| HuggingFace | huggingface.co/blog |
-| Cursor | cursor.com/blog |
-| ElevenLabs | elevenlabs.io/blog |
-| Runway | runwayml.com/blog |
-| And more... | 15+ custom parsers |
+| Parser      | Sites                  |
+| ----------- | ---------------------- |
+| OpenAI      | openai.com/news        |
+| Anthropic   | anthropic.com/news     |
+| Google      | blog.google, ai.google |
+| Microsoft   | microsoft.com/\*/blog  |
+| HuggingFace | huggingface.co/blog    |
+| Cursor      | cursor.com/blog        |
+| ElevenLabs  | elevenlabs.io/blog     |
+| Runway      | runwayml.com/blog      |
+| And more... | 15+ custom parsers     |
 
 ## 📊 Database Schema
 
 ### tools
+
 Stores AI tool metadata (name, category, news URL, RSS feed).
 
 ### news_items
+
 Individual news articles with deduplication hash.
 
 ### daily_digests
+
 Generated summaries in English and Russian.
 
 ## 🔌 Integrations
@@ -207,10 +215,12 @@ Generated summaries in English and Russian.
 ### LLM Providers
 
 **Gemini (Recommended)**
+
 - Faster and more cost-effective
 - Set `GEMINI_API_KEY`
 
 **OpenAI**
+
 - Alternative provider
 - Set `OPENAI_API_KEY`
 
