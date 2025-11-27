@@ -35,6 +35,7 @@ export interface NewsItem {
     tags: string[];
     lang: string | null;
     hash: string | null;
+    digest_date: string | null; // Date when included in a digest
     created_at: string;
 }
 
@@ -69,6 +70,7 @@ export interface DailyDigest {
     id: number;
     date: string;
     summary_md: string;
+    summary_md_ru: string | null;
     summary_short: string | null;
     tools_list: string[];
     created_at: string;
@@ -80,6 +82,7 @@ export interface DailyDigest {
 export interface DailyDigestInput {
     date: string;
     summary_md: string;
+    summary_md_ru?: string | null;
     summary_short?: string | null;
     tools_list?: string[];
 }

@@ -5,30 +5,57 @@ import type { NewsItemWithTool } from "../db/types.js";
  * Result of digest generation
  */
 export interface DigestResult {
+    /** English markdown summary */
     summaryMd: string;
+    /** Russian markdown summary */
+    summaryMdRu: string;
+    /** Short English summary (for notifications) */
     summaryShort: string;
+    /** List of tools mentioned */
     toolsList: string[];
 }
 
 /**
- * System prompt for the digest generator
+ * System prompt for the digest generator - optimized for Telegram
  */
 const SYSTEM_PROMPT = `You are an AI news curator specializing in AI tools and technologies.
-Your task is to create a daily digest of AI news in a clear, concise, and engaging format.
+Your task is to create a daily digest of AI news optimized for Telegram messenger.
 
-Guidelines:
-- Write in a professional but accessible tone
-- Group news by tool/category when appropriate
-- Highlight the most important updates first
-- Use markdown formatting for better readability
-- Include emojis sparingly to make the digest more engaging
-- Focus on what's new and why it matters
-- Keep the summary informative but not overwhelming
+FORMATTING RULES (CRITICAL):
+- Use simple formatting that works in Telegram
+- Use *bold* for emphasis (single asterisks)
+- Use _italic_ for tool names or technical terms
+- Use emojis to make sections visually distinct
+- NO markdown headers (# ## ###) - use emojis and bold instead
+- NO inline links [text](url) - put URLs on separate lines
+- Keep paragraphs short (2-3 sentences max)
+- Use bullet points with • or - for lists
+- Add blank lines between sections for readability
 
-Output format:
-- Start with a brief intro (1-2 sentences about what's notable today)
-- List news items with brief descriptions
-- End with a short conclusion or takeaway`;
+STRUCTURE:
+1. Opening line with date and brief hook (1 sentence)
+2. Main news items grouped by importance/category
+3. Each news item: emoji + bold title + brief description + URL on new line
+4. Closing thought or call-to-action
+
+TONE:
+- Professional but engaging
+- Focus on practical implications
+- Be concise - Telegram users scroll quickly`;
+
+/**
+ * System prompt for Russian translation
+ */
+const TRANSLATION_PROMPT = `You are a professional translator specializing in tech content.
+Translate the following AI news digest from English to Russian.
+
+CRITICAL RULES:
+- Keep ALL formatting exactly the same (emojis, bold, italic, line breaks)
+- Keep ALL URLs unchanged
+- Keep technical terms and product names in English (Claude, GPT, Midjourney, etc.)
+- Use natural, fluent Russian - not literal translation
+- Maintain the same tone and style
+- Do NOT add or remove any information`;
 
 /**
  * Generate user prompt with news items
@@ -50,15 +77,13 @@ function buildUserPrompt(news: NewsItemWithTool[], date: string): string {
         })
         .join("\n\n");
 
-    return `Please create a daily AI news digest for ${date}.
+    return `Create a Telegram-optimized AI news digest for ${date}.
 
-Here are today's news items:
-
+NEWS ITEMS:
 ${newsSection}
 
-Create:
-1. A comprehensive markdown digest (summary_md) - formatted with headers, bullet points, and sections
-2. A short summary (summary_short) - 2-3 sentences max, suitable for a tweet or notification`;
+Remember: Format for Telegram (no markdown headers, simple formatting, emojis for visual structure).
+Output ONLY the digest text, ready to be sent to Telegram.`;
 }
 
 /**
@@ -70,60 +95,107 @@ function extractToolsList(news: NewsItemWithTool[]): string[] {
 }
 
 /**
- * Parse the OpenAI response to extract summaries
+ * Parse the LLM response - now simplified since we get direct Telegram-ready output
  */
 function parseDigestResponse(content: string): {
     summaryMd: string;
     summaryShort: string;
 } {
-    // Try to find explicit sections in the response
-    const shortMatch = content.match(
-        /(?:summary_short|short summary|tweet|notification)[:\s]*\n*(.+?)(?:\n\n|$)/is
-    );
+    const summaryMd = content.trim();
 
-    let summaryShort = "";
-    let summaryMd = content;
-
-    if (shortMatch) {
-        summaryShort = shortMatch[1].trim();
-        // Remove the short summary section from the markdown
-        summaryMd = content
-            .replace(shortMatch[0], "")
-            .trim()
-            // Also remove any header that might precede it
-            .replace(
-                /#+\s*(summary_short|short summary|tweet|notification)\s*\n*/gi,
-                ""
-            );
-    } else {
-        // If no explicit short summary, generate one from the first paragraph
-        const firstParagraph = content.split("\n\n")[0];
-        summaryShort =
-            firstParagraph.length > 280
-                ? firstParagraph.substring(0, 277) + "..."
-                : firstParagraph;
-    }
-
-    // Clean up markdown headers for the main summary
-    summaryMd = summaryMd
-        .replace(/^#+\s*summary_md\s*\n*/im, "")
-        .replace(/^#+\s*comprehensive.*digest\s*\n*/im, "")
-        .trim();
+    // Extract first meaningful line for short summary
+    const lines = summaryMd
+        .split("\n")
+        .filter((line) => line.trim().length > 0);
+    const firstLine = lines[0] || "";
+    const summaryShort =
+        firstLine.length > 280
+            ? firstLine.substring(0, 277) + "..."
+            : firstLine;
 
     return { summaryMd, summaryShort };
 }
 
 /**
+ * Translate text to Russian using LLM with retry logic
+ */
+async function translateToRussian(englishText: string): Promise<string> {
+    console.log("[digestGenerator] Translating digest to Russian...");
+
+    const maxRetries = 2;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const result = await complete({
+                messages: [
+                    { role: "system", content: TRANSLATION_PROMPT },
+                    {
+                        role: "user",
+                        content: `Translate this digest to Russian:\n\n${englishText}`,
+                    },
+                ],
+                maxTokens: 4000, // Increased for Gemini 2.5's thinking tokens
+                temperature: 0.3, // Lower temperature for more consistent translation
+            });
+
+            if (result.content && result.content.trim().length > 0) {
+                console.log(
+                    `[digestGenerator] Translation completed (${result.content.length} chars)`
+                );
+                return result.content.trim();
+            }
+
+            console.warn(
+                `[digestGenerator] Empty translation on attempt ${attempt}`
+            );
+        } catch (error) {
+            lastError =
+                error instanceof Error ? error : new Error(String(error));
+            console.warn(
+                `[digestGenerator] Translation attempt ${attempt} failed: ${lastError.message}`
+            );
+
+            if (attempt < maxRetries) {
+                // Wait before retry
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+        }
+    }
+
+    // If all retries failed, return a fallback message
+    console.error(
+        "[digestGenerator] Translation failed after all retries, using fallback"
+    );
+    return `📰 *AI Tools Digest*\n\n_Перевод временно недоступен. Ниже оригинал на английском:_\n\n${englishText}`;
+}
+
+/**
+ * Options for digest generation
+ */
+export interface DigestOptions {
+    /** Include a "You may have missed" section */
+    includeMissedSection?: boolean;
+    /** Number of missed news items (for prompt) */
+    missedNewsCount?: number;
+}
+
+/**
  * Generate a daily digest from news items using the configured LLM provider
+ * Creates both English and Russian versions
  *
  * @param news Array of news items with tool information
  * @param date Date string in YYYY-MM-DD format
- * @returns Generated digest with markdown summary, short summary, and tools list
+ * @param options Additional options for generation
+ * @returns Generated digest with markdown summaries in both languages, short summary, and tools list
  */
 export async function generateDailyDigest(
     news: NewsItemWithTool[],
-    date: string
+    date: string,
+    options: DigestOptions = {}
 ): Promise<DigestResult> {
+    const { includeMissedSection = false, missedNewsCount = 0 } = options;
+
     console.log(
         `[digestGenerator] Generating digest for ${date} with ${news.length} news items`
     );
@@ -131,35 +203,57 @@ export async function generateDailyDigest(
     if (news.length === 0) {
         console.log("[digestGenerator] No news items to process");
         return {
-            summaryMd: `# AI News Digest - ${date}\n\nNo news items were collected for this date.`,
+            summaryMd: `📰 *AI Tools Digest — ${date}*\n\nNo news items were collected for this date.`,
+            summaryMdRu: `📰 *AI Tools Digest — ${date}*\n\nНовостей за эту дату не найдено.`,
             summaryShort: `No AI news updates for ${date}.`,
             toolsList: [],
         };
     }
 
-    const userPrompt = buildUserPrompt(news, date);
+    let userPrompt = buildUserPrompt(news, date);
+
+    // Add instruction for missed section if needed
+    if (includeMissedSection && missedNewsCount > 0) {
+        const recentCount = news.length - missedNewsCount;
+        userPrompt += `\n\nNOTE: The first ${recentCount} items are recent news. The last ${missedNewsCount} items are important news from earlier that the reader may have missed. 
+Please structure the digest with:
+1. Main section for recent news
+2. A separate "📌 You may have missed" section for the older important items`;
+    }
+
     const toolsList = extractToolsList(news);
 
     try {
-        const result = await complete({
+        // Step 1: Generate English digest
+        console.log("[digestGenerator] Step 1: Generating English digest...");
+        const englishResult = await complete({
             messages: [
                 { role: "system", content: SYSTEM_PROMPT },
                 { role: "user", content: userPrompt },
             ],
-            maxTokens: 2000,
+            maxTokens: 4000, // Increased for Gemini 2.5's thinking tokens
             temperature: 0.7,
         });
 
         console.log(
-            `[digestGenerator] Received response from ${result.provider}/${result.model} (${result.content.length} chars)`
+            `[digestGenerator] English digest received from ${englishResult.provider}/${englishResult.model} (${englishResult.content.length} chars)`
         );
 
-        const { summaryMd, summaryShort } = parseDigestResponse(result.content);
+        const { summaryMd, summaryShort } = parseDigestResponse(
+            englishResult.content
+        );
 
-        console.log("[digestGenerator] Digest generated successfully");
+        // Step 2: Translate to Russian
+        console.log("[digestGenerator] Step 2: Translating to Russian...");
+        const summaryMdRu = await translateToRussian(summaryMd);
+
+        console.log(
+            "[digestGenerator] Digest generated successfully in both languages"
+        );
 
         return {
             summaryMd,
+            summaryMdRu,
             summaryShort,
             toolsList,
         };

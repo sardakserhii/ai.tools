@@ -50,6 +50,10 @@ const envSchema = z.object({
 
     // LLM Provider: "openai" or "gemini"
     LLM_PROVIDER: z.enum(["openai", "gemini"]).default("gemini"),
+
+    // Telegram settings
+    TELEGRAM_BOT_TOKEN: z.string().optional(),
+    TELEGRAM_CHANNEL_ID: z.string().optional(),
 });
 
 /**
@@ -89,6 +93,9 @@ function loadConfig() {
         geminiModel: parsed.data.GEMINI_MODEL,
         // LLM Provider
         llmProvider: parsed.data.LLM_PROVIDER,
+        // Telegram settings
+        telegramBotToken: parsed.data.TELEGRAM_BOT_TOKEN,
+        telegramChannelId: parsed.data.TELEGRAM_CHANNEL_ID,
     };
 }
 

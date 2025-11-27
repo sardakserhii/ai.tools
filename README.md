@@ -1,257 +1,274 @@
-# AI News Aggregator
+# 🤖 AI News Aggregator
 
-An automated news aggregation service for AI tools, built with TypeScript, Supabase (PostgreSQL), and deployed on Vercel serverless functions.
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-green?logo=node.js)](https://nodejs.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com/)
+[![Vercel](https://img.shields.io/badge/Vercel-Serverless-black?logo=vercel)](https://vercel.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Overview
+**An automated news aggregation and digest generation service for AI tools, with Telegram publishing.**
 
-This service aggregates news and updates from various AI tools (ChatGPT, Claude, Midjourney, GitHub Copilot, DALL-E, etc.) into a centralized database. The system is designed to:
+[🇷🇺 Читать на русском](./README.ru.md)
 
-1. Fetch updates from AI tool news sources
-2. Parse and extract relevant news items
-3. Classify news importance using LLM (coming soon)
-4. Store structured data in Supabase PostgreSQL
-5. Generate daily digest summaries (coming soon)
+---
 
-## Tech Stack
+## ✨ Features
 
-- **Runtime**: Node.js 18+ with TypeScript
-- **Database**: Supabase (PostgreSQL)
-- **Deployment**: Vercel Serverless Functions
-- **Key Libraries**:
-    - `@supabase/supabase-js` - Supabase client
-    - `zod` - Runtime type validation
-    - `dayjs` - Date manipulation
-    - `dotenv` - Environment configuration
+- 📰 **Multi-source News Aggregation** — Collects news from 30+ AI tools (ChatGPT, Claude, Midjourney, Copilot, etc.)
+- 🔄 **Smart Parsing** — RSS/Atom feeds, HTML blogs, and custom parsers for specific sites
+- 🤖 **LLM-powered Digests** — Generates daily summaries using Gemini or OpenAI
+- 🌍 **Multilingual** — Supports English and Russian digest generation
+- 📱 **Telegram Integration** — Automatic publishing to Telegram channels
+- ⏰ **Automated Scheduling** — Daily cron jobs via Vercel
+- 🔒 **Deduplication** — Hash-based duplicate detection
 
-## Project Structure
+## 🛠 Tech Stack
+
+| Category | Technologies |
+|----------|-------------|
+| **Runtime** | Node.js 20+, TypeScript 5.8 |
+| **Database** | Supabase (PostgreSQL) |
+| **Deployment** | Vercel Serverless Functions |
+| **LLM Providers** | Google Gemini, OpenAI GPT-4 |
+| **Parsing** | Cheerio, fast-xml-parser |
+| **Validation** | Zod |
+
+## 📁 Project Structure
 
 ```
+ai-news-aggregator/
 ├── api/
-│   └── run-daily-digest.ts    # Vercel serverless endpoint
+│   └── run-daily-digest.ts     # Vercel serverless endpoint
+├── scripts/
+│   ├── run-pipeline.ts         # Main pipeline runner
+│   ├── publish-telegram.ts     # Telegram publisher
+│   ├── test-digest.ts          # Digest testing
+│   ├── view-digest.ts          # View generated digests
+│   └── ...                     # Other utility scripts
 ├── src/
 │   ├── config/
-│   │   └── env.ts             # Environment configuration with Zod validation
+│   │   └── env.ts              # Environment configuration (Zod)
 │   ├── db/
-│   │   ├── supabaseClient.ts  # Supabase client initialization
-│   │   ├── types.ts           # TypeScript types for DB entities
-│   │   └── queries/
-│   │       ├── tools.ts       # Tool queries
-│   │       ├── newsItems.ts   # News item queries
-│   │       └── dailyDigest.ts # Daily digest queries
+│   │   ├── supabaseClient.ts   # Supabase client
+│   │   ├── types.ts            # TypeScript types
+│   │   └── queries/            # Database queries
 │   ├── services/
-│   │   ├── newsPipeline.ts    # Main aggregation pipeline
-│   │   └── fetchToolNews.ts   # News fetcher (mock implementation)
+│   │   ├── digestGenerator.ts  # LLM digest generation
+│   │   ├── fetchToolNews.ts    # News fetching orchestrator
+│   │   ├── newsPipeline.ts     # Main aggregation pipeline
+│   │   ├── telegramPublisher.ts # Telegram API integration
+│   │   ├── llm/                # LLM providers (Gemini, OpenAI)
+│   │   └── parsers/            # News parsers
 │   └── utils/
-│       └── dates.ts           # Date utility functions
-├── supabase/
-│   └── migrations/
-│       └── 0001_init_schema.sql  # Database schema
-├── package.json
-├── tsconfig.json
-├── vercel.json                # Vercel deployment config
-├── .env.example               # Environment variables template
-└── .gitignore
+│       └── dates.ts            # Date utilities
+└── supabase/
+    └── migrations/             # Database migrations
 ```
 
-## Local Development
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18 or higher
-- npm (or pnpm if available)
-- A Supabase project ([create one here](https://supabase.com/dashboard))
+- Node.js 20+
+- [Supabase](https://supabase.com/) project
+- (Optional) Telegram Bot for publishing
+- (Optional) Gemini or OpenAI API key for digest generation
 
-### Setup
-
-1. **Clone and install dependencies**:
-
-    ```bash
-    npm install
-    ```
-
-2. **Configure environment variables**:
-
-    Copy `.env.example` to `.env` and fill in your Supabase credentials:
-
-    ```bash
-    cp .env.example .env
-    ```
-
-    Edit `.env`:
-
-    ```
-    SUPABASE_URL=https://your-project.supabase.co
-    SUPABASE_ANON_KEY=your-anon-key
-    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-    NODE_ENV=development
-    ```
-
-    > ⚠️ **Important**: Never commit the `.env` file or expose the `SUPABASE_SERVICE_ROLE_KEY` in client-side code.
-
-3. **Apply database migrations**:
-
-    Go to your Supabase Dashboard → SQL Editor, and run the contents of:
-
-    ```
-    supabase/migrations/0001_init_schema.sql
-    ```
-
-    This creates the `tools`, `news_items`, and `daily_digest` tables with sample data.
-
-4. **Run the pipeline locally**:
-
-    ```bash
-    npm run dev
-    ```
-
-    This executes the daily digest pipeline with mock data.
-
-### Available Scripts
-
-| Script              | Description                       |
-| ------------------- | --------------------------------- |
-| `npm run dev`       | Run the pipeline locally with tsx |
-| `npm run build`     | Compile TypeScript to JavaScript  |
-| `npm run typecheck` | Run TypeScript type checking      |
-| `npm run lint`      | Run ESLint                        |
-| `npm start`         | Run compiled JavaScript           |
-
-## Deployment
-
-### Vercel Setup
-
-1. **Install Vercel CLI** (optional):
-
-    ```bash
-    npm i -g vercel
-    ```
-
-2. **Link to Vercel project**:
-
-    ```bash
-    vercel
-    ```
-
-3. **Configure environment variables** in Vercel Dashboard:
-    - `SUPABASE_URL`
-    - `SUPABASE_ANON_KEY`
-    - `SUPABASE_SERVICE_ROLE_KEY`
-    - `NODE_ENV=production`
-
-4. **Deploy**:
-    ```bash
-    vercel --prod
-    ```
-
-### Cron Job
-
-The `vercel.json` includes a cron job configuration that runs the pipeline daily at 06:00 UTC:
-
-```json
-{
-    "crons": [
-        {
-            "path": "/api/run-daily-digest",
-            "schedule": "0 6 * * *"
-        }
-    ]
-}
-```
-
-> Note: Vercel Cron Jobs require a Pro plan or higher.
-
-### Manual Trigger
-
-You can manually trigger the pipeline via HTTP:
+### Installation
 
 ```bash
-curl https://your-project.vercel.app/api/run-daily-digest
+# Clone the repository
+git clone https://github.com/yourusername/ai-news-aggregator.git
+cd ai-news-aggregator
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your credentials
 ```
 
-Response:
+### Environment Variables
+
+```env
+# Required
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# LLM Provider (at least one)
+GEMINI_API_KEY=your-gemini-key
+OPENAI_API_KEY=your-openai-key
+
+# Telegram (optional)
+TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_CHANNEL_ID=-1001234567890
+
+# Optional
+NODE_ENV=development
+PROXY_URL=http://proxy:port
+PROXY_ENABLED=false
+```
+
+### Database Setup
+
+Apply migrations in your Supabase SQL Editor:
+
+```bash
+# Files located in supabase/migrations/
+0001_init_schema.sql
+0002_add_russian_digest.sql
+0003_add_digest_tracking.sql
+```
+
+## 📖 Usage
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `npx tsx scripts/run-pipeline.ts` | Run full pipeline (fetch news + generate digest) |
+| `npx tsx scripts/run-pipeline.ts 2025-01-15` | Process specific date |
+| `npx tsx scripts/run-pipeline.ts --force` | Force regenerate digest |
+| `npx tsx scripts/publish-telegram.ts` | Publish today's digest to Telegram |
+| `npx tsx scripts/publish-telegram.ts --test` | Test Telegram connection |
+| `npx tsx scripts/view-digest.ts` | View latest digest |
+| `npx tsx scripts/view-digest.ts 2025-01-15` | View specific date's digest |
+
+### API Endpoints
+
+```bash
+# Trigger pipeline via HTTP
+GET /api/run-daily-digest
+
+# With options
+GET /api/run-daily-digest?force=true&telegram=true&date=2025-01-15
+```
+
+### Automated Scheduling
+
+The service runs automatically via Vercel Cron at 06:00 UTC daily:
 
 ```json
+// vercel.json
 {
-    "ok": true,
-    "totalNews": 6,
-    "toolsProcessed": 5,
-    "date": "2024-01-15",
-    "timestamp": "2024-01-15T06:00:00.000Z"
+  "crons": [{
+    "path": "/api/run-daily-digest?telegram=true",
+    "schedule": "0 6 * * *"
+  }]
 }
 ```
 
-## Pipeline Architecture
+## 🔧 Parsers
+
+The system includes multiple parser types:
+
+### RSS/Atom Parser
+Automatically detects and parses standard feeds.
+
+### HTML Blog Parser
+Universal fallback parser using multiple CSS selectors.
+
+### Custom Parsers
+Specialized parsers for specific sites:
+
+| Parser | Sites |
+|--------|-------|
+| OpenAI | openai.com/news |
+| Anthropic | anthropic.com/news |
+| Google | blog.google, ai.google |
+| Microsoft | microsoft.com/*/blog |
+| HuggingFace | huggingface.co/blog |
+| Cursor | cursor.com/blog |
+| ElevenLabs | elevenlabs.io/blog |
+| Runway | runwayml.com/blog |
+| And more... | 15+ custom parsers |
+
+## 📊 Database Schema
+
+### tools
+Stores AI tool metadata (name, category, news URL, RSS feed).
+
+### news_items
+Individual news articles with deduplication hash.
+
+### daily_digests
+Generated summaries in English and Russian.
+
+## 🔌 Integrations
+
+### Telegram Bot Setup
+
+1. Create bot via [@BotFather](https://t.me/botfather)
+2. Add bot as admin to your channel
+3. Get channel ID via [@userinfobot](https://t.me/userinfobot)
+4. Configure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHANNEL_ID`
+
+### LLM Providers
+
+**Gemini (Recommended)**
+- Faster and more cost-effective
+- Set `GEMINI_API_KEY`
+
+**OpenAI**
+- Alternative provider
+- Set `OPENAI_API_KEY`
+
+## 🚢 Deployment
+
+### Vercel (Recommended)
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel --prod
+```
+
+Configure environment variables in Vercel Dashboard.
+
+### Self-hosted
+
+```bash
+npm run build
+npm start
+```
+
+## 📈 Pipeline Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    /api/run-daily-digest                        │
-│                    (Vercel Serverless Function)                 │
+│                    Vercel Cron (06:00 UTC)                      │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    runDailyDigestPipeline()                     │
-│                    (src/services/newsPipeline.ts)               │
+│                    /api/run-daily-digest                        │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│               runDailyDigestPipeline()                          │
 ├─────────────────────────────────────────────────────────────────┤
-│ 1. getActiveTools() → Fetch active AI tools from Supabase      │
-│ 2. fetchToolNews() → Fetch news for each tool (mock/MCP)       │
-│ 3. transformNewsItems() → Add hashes, prepare for DB           │
-│ 4. insertNewsItems() → Upsert to Supabase with deduplication   │
-│ 5. [TODO] classifyWithLLM() → Rate importance with AI          │
-│ 6. [TODO] generateDigest() → Create daily summary              │
+│ 1. Fetch active tools from Supabase                             │
+│ 2. Parse news from each source (RSS/HTML/Custom)                │
+│ 3. Deduplicate and store in database                            │
+│ 4. Generate digest via LLM (EN + RU)                            │
+│ 5. Publish to Telegram                                          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Database Schema
+## 🤝 Contributing
 
-### tools
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-| Column     | Type        | Description                       |
-| ---------- | ----------- | --------------------------------- |
-| id         | TEXT (PK)   | Tool identifier (e.g., 'chatgpt') |
-| name       | TEXT        | Display name                      |
-| category   | TEXT        | Category (llm, image-gen, etc.)   |
-| site_url   | TEXT        | Main website URL                  |
-| news_url   | TEXT        | News/blog URL to scrape           |
-| lang       | TEXT        | Primary language (default: 'en')  |
-| is_active  | BOOLEAN     | Include in aggregation            |
-| created_at | TIMESTAMPTZ | Creation timestamp                |
-| updated_at | TIMESTAMPTZ | Last update timestamp             |
+## 📄 License
 
-### news_items
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-| Column       | Type           | Description             |
-| ------------ | -------------- | ----------------------- |
-| id           | BIGSERIAL (PK) | Auto-increment ID       |
-| tool_id      | TEXT (FK)      | Reference to tools.id   |
-| title        | TEXT           | News headline           |
-| url          | TEXT           | Original news URL       |
-| published_at | TIMESTAMPTZ    | Original publish date   |
-| raw_content  | TEXT           | Full scraped content    |
-| snippet      | TEXT           | Short summary           |
-| importance   | TEXT           | 'high', 'medium', 'low' |
-| tags         | TEXT[]         | Categorization tags     |
-| hash         | TEXT (UNIQUE)  | Deduplication hash      |
+---
 
-### daily_digest
-
-| Column        | Type           | Description           |
-| ------------- | -------------- | --------------------- |
-| id            | BIGSERIAL (PK) | Auto-increment ID     |
-| date          | DATE (UNIQUE)  | Digest date           |
-| summary_md    | TEXT           | Full markdown summary |
-| summary_short | TEXT           | TL;DR summary         |
-| tools_list    | TEXT[]         | Tools covered         |
-
-## Future Enhancements
-
-- [ ] Real web scraping with MCP site-news integration
-- [ ] LLM-based news importance classification
-- [ ] Automated daily digest generation
-- [ ] Email/Telegram notifications
-- [ ] RSS feed output
-- [ ] Admin dashboard
-
-## License
-
-MIT
+<p align="center">
+  Made with ❤️ for the AI community
+</p>

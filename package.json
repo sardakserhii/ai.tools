@@ -1,12 +1,31 @@
 {
     "name": "ai-news-aggregator",
-    "version": "0.1.0",
-    "description": "AI tools news aggregator with Supabase and Vercel",
+    "version": "0.3.0",
+    "description": "Automated AI tools news aggregation service with LLM-powered digests and Telegram publishing",
     "type": "module",
+    "keywords": [
+        "ai",
+        "news",
+        "aggregator",
+        "typescript",
+        "supabase",
+        "vercel",
+        "telegram",
+        "llm",
+        "gemini",
+        "openai"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/ai-news-aggregator"
+    },
     "scripts": {
         "dev": "tsx api/run-daily-digest.ts",
         "build": "tsc",
         "start": "node dist/api/run-daily-digest.js",
+        "pipeline": "tsx scripts/run-pipeline.ts",
+        "publish:telegram": "tsx scripts/publish-telegram.ts",
+        "view:digest": "tsx scripts/view-digest.ts",
         "seed": "tsx scripts/seed-tools.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit"

@@ -100,6 +100,7 @@ export class AnthropicParser implements NewsParser {
 
         const $ = cheerio.load(result.text);
         const news: ParsedNewsItem[] = [];
+        const seenUrls = new Set<string>();
 
         // Anthropic uses article cards
         $("article, a[href*='/news/'], .post-card").each((_, el) => {
@@ -108,7 +109,18 @@ export class AnthropicParser implements NewsParser {
 
             let $link = $el.is("a") ? $el : $el.find("a").first();
             const href = $link.attr("href") || "";
-            if (!href || href === "#") return;
+
+            // Skip invalid URLs
+            if (
+                !href ||
+                href === "#" ||
+                href.startsWith("mailto:") ||
+                href.startsWith("tel:")
+            )
+                return;
+
+            // Must be an actual news article URL
+            if (!href.includes("/news/")) return;
 
             const title = cleanText(
                 $el.find("h2, h3, .title").first().text() || $link.text()
@@ -116,6 +128,11 @@ export class AnthropicParser implements NewsParser {
             if (!title || title.length < 10) return;
 
             const link = normalizeUrl(href, url);
+
+            // Skip duplicates
+            if (seenUrls.has(link)) return;
+            seenUrls.add(link);
+
             const dateText =
                 $el.find("time, .date").text() ||
                 $el.find("[datetime]").attr("datetime") ||

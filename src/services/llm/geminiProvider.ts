@@ -53,7 +53,12 @@ export class GeminiProvider implements LLMProvider {
         const response = result.response;
         const content = response.text();
 
-        if (!content) {
+        if (!content || content.trim().length === 0) {
+            console.error("[gemini] Empty response received");
+            console.error(
+                "[gemini] Response object:",
+                JSON.stringify(response, null, 2)
+            );
             throw new Error("Empty response from Gemini");
         }
 

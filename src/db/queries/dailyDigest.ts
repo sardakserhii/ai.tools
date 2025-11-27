@@ -11,17 +11,25 @@ import type { DailyDigest } from "../types.js";
 export async function saveDailyDigest(input: {
     date: string;
     summaryMd: string;
+    summaryMdRu?: string;
     summaryShort: string;
     toolsList: string[];
 }): Promise<void> {
     console.log(`[dailyDigest] Saving digest for date: ${input.date}`);
 
-    const digestData = {
+    // Build digest data - only include summary_md_ru if it exists
+    // This allows the code to work before and after the migration
+    const digestData: Record<string, unknown> = {
         date: input.date,
         summary_md: input.summaryMd,
         summary_short: input.summaryShort,
         tools_list: input.toolsList,
     };
+
+    // Only add Russian version if provided (column may not exist yet)
+    if (input.summaryMdRu) {
+        digestData.summary_md_ru = input.summaryMdRu;
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase
@@ -31,6 +39,35 @@ export async function saveDailyDigest(input: {
         });
 
     if (error) {
+        // If the error is about missing column, try without Russian version
+        if (error.message.includes("summary_md_ru")) {
+            console.warn(
+                "[dailyDigest] Column summary_md_ru not found, saving without Russian version"
+            );
+            delete digestData.summary_md_ru;
+
+            const { error: retryError } = await supabase
+                .from("daily_digest")
+                .upsert(digestData as any, {
+                    onConflict: "date",
+                });
+
+            if (retryError) {
+                console.error(
+                    "[dailyDigest] Error saving digest:",
+                    retryError.message
+                );
+                throw new Error(
+                    `Failed to save daily digest: ${retryError.message}`
+                );
+            }
+
+            console.log(
+                `[dailyDigest] Successfully saved digest for ${input.date} (without Russian)`
+            );
+            return;
+        }
+
         console.error("[dailyDigest] Error saving digest:", error.message);
         throw new Error(`Failed to save daily digest: ${error.message}`);
     }

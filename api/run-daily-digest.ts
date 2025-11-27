@@ -18,6 +18,7 @@ import { formatDateISO } from "../src/utils/dates.js";
  * Query parameters:
  * - force=true: Force regenerate digest even if it already exists
  * - date=YYYY-MM-DD: Process specific date instead of yesterday
+ * - telegram=true: Publish digest to Telegram after generation
  *
  * @param req Vercel request object
  * @param res Vercel response object
@@ -39,6 +40,7 @@ export default async function handler(
     try {
         // Parse query parameters
         const forceRegenerate = req.query.force === "true";
+        const publishTelegram = req.query.telegram === "true";
         const dateParam = req.query.date as string | undefined;
 
         let targetDate: Date | undefined;
@@ -53,11 +55,13 @@ export default async function handler(
 
         console.log(`[api] Running pipeline for date: ${dateStr} (UTC)`);
         console.log(`[api] Force regenerate: ${forceRegenerate}`);
+        console.log(`[api] Publish to Telegram: ${publishTelegram}`);
 
         // Run the pipeline
         const result = await runDailyDigestPipeline({
             targetDate,
             forceRegenerate,
+            publishToTelegram: publishTelegram,
         });
 
         // Return success response
@@ -67,6 +71,7 @@ export default async function handler(
             toolsProcessed: result.toolsProcessed,
             digestGenerated: result.digestGenerated,
             digestFromCache: result.digestFromCache,
+            telegramPublished: result.telegramPublished,
             date: dateStr,
             timestamp: now.toISOString(),
             errors: result.errors.length > 0 ? result.errors : undefined,

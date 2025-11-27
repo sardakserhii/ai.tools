@@ -1,9 +1,15 @@
 import { createHash } from "crypto";
 import { getActiveTools } from "../db/queries/tools.js";
-import { insertNewsItems, getTodayNews } from "../db/queries/newsItems.js";
+import {
+    insertNewsItems,
+    getTodayNews,
+    getNewsForDigest,
+    markNewsAsDigested,
+} from "../db/queries/newsItems.js";
 import { saveDailyDigest, getDailyDigest } from "../db/queries/dailyDigest.js";
 import { fetchToolNews } from "./fetchToolNews.js";
 import { generateDailyDigest } from "./digestGenerator.js";
+import { publishToTelegram } from "./telegramPublisher.js";
 import { formatDateISO, getDaysAgo } from "../utils/dates.js";
 import type { Tool, NewsItemInput, ParsedNewsItem } from "../db/types.js";
 
@@ -16,6 +22,7 @@ export interface PipelineResult {
     toolsProcessed: number;
     digestGenerated: boolean;
     digestFromCache: boolean;
+    telegramPublished: boolean;
     errors: string[];
 }
 
@@ -29,6 +36,12 @@ export interface PipelineOptions {
     forceRegenerate?: boolean;
     /** Skip news fetching, only generate digest (default: false) */
     skipNewsFetch?: boolean;
+    /** Publish digest to Telegram (default: false) */
+    publishToTelegram?: boolean;
+    /** Use rolling window mode instead of single date (default: false) */
+    useRollingWindow?: boolean;
+    /** Days to look back for recent news in rolling mode (default: 3) */
+    recentDays?: number;
 }
 
 /**
@@ -44,7 +57,7 @@ interface FetchNewsResult {
  * Fetch news from all active tools and insert into database
  */
 async function fetchAndInsertNews(
-    targetDateStr: string
+    _targetDateStr: string
 ): Promise<FetchNewsResult> {
     const errors: string[] = [];
     let totalNewsCount = 0;
@@ -64,8 +77,9 @@ async function fetchAndInsertNews(
     // Fetch news for each tool
     console.log("[pipeline] Fetching news for each tool...");
 
-    // Look for news from the last 48 hours to ensure we don't miss anything
-    const sinceDate = getDaysAgo(2);
+    // Look for news from the last 7 days to ensure we don't miss anything
+    // Some parsers may have delayed updates or timezone differences
+    const sinceDate = getDaysAgo(7);
 
     const allNewsItems: NewsItemInput[] = [];
 
@@ -138,6 +152,7 @@ export async function runDailyDigestPipeline(
         targetDate = getDaysAgo(1), // Default: yesterday
         forceRegenerate = false,
         skipNewsFetch = false,
+        publishToTelegram: shouldPublish = false,
     } = options;
 
     const dateStr = formatDateISO(targetDate);
@@ -146,6 +161,7 @@ export async function runDailyDigestPipeline(
     console.log(`[pipeline] Target date: ${dateStr}`);
     console.log(`[pipeline] Force regenerate: ${forceRegenerate}`);
     console.log(`[pipeline] Skip news fetch: ${skipNewsFetch}`);
+    console.log(`[pipeline] Publish to Telegram: ${shouldPublish}`);
     console.log(`========================================\n`);
 
     const errors: string[] = [];
@@ -153,6 +169,7 @@ export async function runDailyDigestPipeline(
     let toolsProcessed = 0;
     let digestGenerated = false;
     let digestFromCache = false;
+    let telegramPublished = false;
 
     try {
         // Step 1: Check if digest already exists
@@ -176,11 +193,36 @@ export async function runDailyDigestPipeline(
                 errors.push(...result.errors);
             }
 
+            // Publish cached digest to Telegram if requested (prefer Russian version)
+            const digestToPublish =
+                existingDigest.summary_md_ru || existingDigest.summary_md;
+            if (shouldPublish && digestToPublish) {
+                console.log(
+                    "\n[pipeline] Step 3: Publishing cached digest to Telegram..."
+                );
+                const telegramResult = await publishToTelegram(
+                    digestToPublish,
+                    dateStr
+                );
+                if (telegramResult.success) {
+                    telegramPublished = true;
+                    console.log("[pipeline] ✅ Digest published to Telegram");
+                } else {
+                    errors.push(
+                        `Telegram publish error: ${telegramResult.error}`
+                    );
+                    console.log(
+                        `[pipeline] ⚠️ Failed to publish to Telegram: ${telegramResult.error}`
+                    );
+                }
+            }
+
             console.log(`\n========================================`);
             console.log(`[pipeline] Pipeline completed (digest from cache)`);
             console.log(`[pipeline] Target date: ${dateStr}`);
             console.log(`[pipeline] News items fetched: ${totalNewsCount}`);
             console.log(`[pipeline] Digest generated: false (using cached)`);
+            console.log(`[pipeline] Telegram published: ${telegramPublished}`);
             console.log(`========================================\n`);
 
             return {
@@ -189,6 +231,7 @@ export async function runDailyDigestPipeline(
                 toolsProcessed,
                 digestGenerated: false,
                 digestFromCache: true,
+                telegramPublished,
                 errors,
             };
         }
@@ -218,19 +261,22 @@ export async function runDailyDigestPipeline(
         console.log("\n[pipeline] Step 3: Generating daily digest via LLM...");
 
         const newsForDigest = await getTodayNews(dateStr);
+        let generatedSummaryMdRu: string | null = null;
 
         if (newsForDigest.length > 0) {
             console.log(
                 `[pipeline] Found ${newsForDigest.length} news items for digest generation`
             );
 
-            // Generate digest using LLM
+            // Generate digest using LLM (both EN and RU)
             const digest = await generateDailyDigest(newsForDigest, dateStr);
+            generatedSummaryMdRu = digest.summaryMdRu;
 
             // Save digest to database
             await saveDailyDigest({
                 date: dateStr,
                 summaryMd: digest.summaryMd,
+                summaryMdRu: digest.summaryMdRu,
                 summaryShort: digest.summaryShort,
                 toolsList: digest.toolsList,
             });
@@ -243,11 +289,32 @@ export async function runDailyDigestPipeline(
             );
         }
 
+        // Step 4: Publish to Telegram if requested (Russian version)
+        if (shouldPublish && generatedSummaryMdRu) {
+            console.log(
+                "\n[pipeline] Step 4: Publishing digest to Telegram (Russian)..."
+            );
+            const telegramResult = await publishToTelegram(
+                generatedSummaryMdRu,
+                dateStr
+            );
+            if (telegramResult.success) {
+                telegramPublished = true;
+                console.log("[pipeline] ✅ Digest published to Telegram");
+            } else {
+                errors.push(`Telegram publish error: ${telegramResult.error}`);
+                console.log(
+                    `[pipeline] ⚠️ Failed to publish to Telegram: ${telegramResult.error}`
+                );
+            }
+        }
+
         console.log(`\n========================================`);
         console.log(`[pipeline] Pipeline completed successfully`);
         console.log(`[pipeline] Target date: ${dateStr}`);
         console.log(`[pipeline] Total news items: ${totalNewsCount}`);
         console.log(`[pipeline] Digest generated: ${digestGenerated}`);
+        console.log(`[pipeline] Telegram published: ${telegramPublished}`);
         console.log(`[pipeline] Errors: ${errors.length}`);
         console.log(`========================================\n`);
 
@@ -257,6 +324,7 @@ export async function runDailyDigestPipeline(
             toolsProcessed,
             digestGenerated,
             digestFromCache,
+            telegramPublished,
             errors,
         };
     } catch (error) {
@@ -273,7 +341,192 @@ export async function runDailyDigestPipeline(
             toolsProcessed,
             digestGenerated,
             digestFromCache,
+            telegramPublished,
             errors: [...errors, errorMsg],
+        };
+    }
+}
+
+/**
+ * Rolling window digest result
+ */
+export interface RollingDigestResult {
+    ok: boolean;
+    recentNewsCount: number;
+    missedNewsCount: number;
+    digestGenerated: boolean;
+    telegramPublished: boolean;
+    newsMarkedAsDigested: number;
+    errors: string[];
+}
+
+/**
+ * Run the rolling window digest pipeline
+ *
+ * This is the recommended production mode that:
+ * 1. Collects news from the last N days that haven't been included in any digest
+ * 2. Optionally includes "missed" high-importance news from earlier
+ * 3. Generates a combined digest with both sections
+ * 4. Marks all included news as processed
+ *
+ * Benefits:
+ * - No news gets lost if pipeline fails one day
+ * - Important news resurfaces if missed initially
+ * - Handles irregular publishing schedules
+ *
+ * @param options Pipeline configuration
+ */
+export async function runRollingDigestPipeline(
+    options: {
+        /** Days to look back for recent news (default: 3) */
+        recentDays?: number;
+        /** Days to look back for missed important news (default: 7) */
+        missedDays?: number;
+        /** Fetch fresh news before generating digest (default: true) */
+        fetchNews?: boolean;
+        /** Publish to Telegram (default: false) */
+        publishToTelegram?: boolean;
+        /** Skip marking news as digested (for testing) */
+        dryRun?: boolean;
+    } = {}
+): Promise<RollingDigestResult> {
+    const {
+        recentDays = 3,
+        missedDays = 7,
+        fetchNews = true,
+        publishToTelegram: shouldPublish = false,
+        dryRun = false,
+    } = options;
+
+    const errors: string[] = [];
+    const today = formatDateISO(new Date());
+    let telegramPublished = false;
+    let newsMarkedAsDigested = 0;
+
+    console.log(`\n========================================`);
+    console.log(`[pipeline] Starting ROLLING WINDOW digest pipeline`);
+    console.log(`[pipeline] Date: ${today}`);
+    console.log(`[pipeline] Recent window: ${recentDays} days`);
+    console.log(`[pipeline] Missed window: ${missedDays} days`);
+    console.log(`[pipeline] Dry run: ${dryRun}`);
+    console.log(`========================================\n`);
+
+    try {
+        // Step 1: Optionally fetch fresh news
+        if (fetchNews) {
+            console.log("[pipeline] Step 1: Fetching fresh news...");
+            const fetchResult = await fetchAndInsertNews(today);
+            console.log(
+                `[pipeline] Fetched ${fetchResult.totalNews} news items`
+            );
+            errors.push(...fetchResult.errors);
+        } else {
+            console.log("[pipeline] Step 1: Skipping news fetch");
+        }
+
+        // Step 2: Get unprocessed news using rolling window
+        console.log("\n[pipeline] Step 2: Gathering unprocessed news...");
+        const { recentNews, missedNews } = await getNewsForDigest({
+            recentDays,
+            missedDays,
+            includeUndated: true,
+            missedImportance: ["high"],
+        });
+
+        const totalNews = recentNews.length + missedNews.length;
+        console.log(`[pipeline] Recent news: ${recentNews.length}`);
+        console.log(`[pipeline] Missed important news: ${missedNews.length}`);
+
+        if (totalNews === 0) {
+            console.log("[pipeline] ⚠️ No unprocessed news found");
+            return {
+                ok: true,
+                recentNewsCount: 0,
+                missedNewsCount: 0,
+                digestGenerated: false,
+                telegramPublished: false,
+                newsMarkedAsDigested: 0,
+                errors,
+            };
+        }
+
+        // Step 3: Generate digest with both sections
+        console.log("\n[pipeline] Step 3: Generating digest...");
+
+        // Combine for digest generation (recent first, then missed)
+        const allNewsForDigest = [...recentNews, ...missedNews];
+        const digest = await generateDailyDigest(allNewsForDigest, today, {
+            includeMissedSection: missedNews.length > 0,
+            missedNewsCount: missedNews.length,
+        });
+
+        // Save digest
+        await saveDailyDigest({
+            date: today,
+            summaryMd: digest.summaryMd,
+            summaryMdRu: digest.summaryMdRu,
+            summaryShort: digest.summaryShort,
+            toolsList: digest.toolsList,
+        });
+        console.log("[pipeline] ✅ Digest saved to database");
+
+        // Step 4: Mark news as digested
+        if (!dryRun) {
+            const allNewsIds = allNewsForDigest.map((n) => n.id);
+            await markNewsAsDigested(allNewsIds, today);
+            newsMarkedAsDigested = allNewsIds.length;
+            console.log(
+                `[pipeline] ✅ Marked ${newsMarkedAsDigested} news items as digested`
+            );
+        } else {
+            console.log("[pipeline] ⏭️ Dry run - skipping digest marking");
+        }
+
+        // Step 5: Publish to Telegram
+        if (shouldPublish && digest.summaryMdRu) {
+            console.log("\n[pipeline] Step 5: Publishing to Telegram...");
+            const telegramResult = await publishToTelegram(
+                digest.summaryMdRu,
+                today
+            );
+            if (telegramResult.success) {
+                telegramPublished = true;
+                console.log("[pipeline] ✅ Published to Telegram");
+            } else {
+                errors.push(`Telegram: ${telegramResult.error}`);
+            }
+        }
+
+        console.log(`\n========================================`);
+        console.log(`[pipeline] Rolling digest completed successfully`);
+        console.log(`[pipeline] Recent news: ${recentNews.length}`);
+        console.log(`[pipeline] Missed news: ${missedNews.length}`);
+        console.log(`[pipeline] News marked: ${newsMarkedAsDigested}`);
+        console.log(`[pipeline] Telegram: ${telegramPublished}`);
+        console.log(`========================================\n`);
+
+        return {
+            ok: true,
+            recentNewsCount: recentNews.length,
+            missedNewsCount: missedNews.length,
+            digestGenerated: true,
+            telegramPublished,
+            newsMarkedAsDigested,
+            errors,
+        };
+    } catch (error) {
+        const errorMsg = `Rolling pipeline error: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(`[pipeline] ${errorMsg}`);
+        errors.push(errorMsg);
+
+        return {
+            ok: false,
+            recentNewsCount: 0,
+            missedNewsCount: 0,
+            digestGenerated: false,
+            telegramPublished: false,
+            newsMarkedAsDigested: 0,
+            errors,
         };
     }
 }

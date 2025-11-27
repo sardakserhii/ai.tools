@@ -14,7 +14,7 @@
     ],
     "crons": [
         {
-            "path": "/api/run-daily-digest",
+            "path": "/api/run-daily-digest?telegram=true",
             "schedule": "0 6 * * *"
         }
     ]
