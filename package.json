@@ -1,5 +1,5 @@
 {
-    "name": "ai-news-aggregator",
+    "name": "ai.tools",
     "version": "0.3.0",
     "description": "Automated AI tools news aggregation service with LLM-powered digests and Telegram publishing",
     "type": "module",
