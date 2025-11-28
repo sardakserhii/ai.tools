@@ -2,19 +2,23 @@
 
 ## Обзор проекта
 
-AI Tools News Aggregator — это сервис для автоматического сбора и агрегации новостей от ведущих AI-инструментов. Проект использует Supabase для хранения данных и Vercel для деплоя.
+AI Tools News Aggregator — это сервис для автоматического сбора и агрегации новостей от ведущих AI-инструментов. Проект использует Supabase для хранения данных, Gemini для генерации дайджестов, Telegram для публикации и Vercel для деплоя.
 
 ## Архитектура
 
 ```
 ai-tools/
 ├── api/                    # Vercel serverless functions
-│   └── run-daily-digest.ts # Эндпоинт запуска пайплайна
+│   └── run-daily-digest.ts # Эндпоинт запуска пайплайна (cron 06:00 UTC)
 ├── scripts/                # Утилитарные скрипты
 │   ├── seed-tools.ts       # Наполнение БД инструментами
 │   ├── run-pipeline.ts     # Локальный запуск пайплайна
-│   ├── test-fetch-news.ts  # Тест получения новостей
-│   └── test-parsers.ts     # Тест парсеров
+│   ├── generate-digest.ts  # Генерация дайджеста из необработанных новостей
+│   ├── publish-telegram.ts # Публикация в Telegram
+│   ├── test-parsers.ts     # Тест парсеров
+│   ├── test-new-content.ts # Тест URL-based детекции
+│   ├── view-digest.ts      # Просмотр дайджеста
+│   └── debug-*.ts          # Отладочные скрипты
 ├── src/
 │   ├── config/
 │   │   └── env.ts          # Конфигурация окружения
@@ -26,9 +30,16 @@ ai-tools/
 │   │       ├── newsItems.ts
 │   │       └── tools.ts
 │   ├── services/
-│   │   ├── fetchToolNews.ts    # Основной сервис получения новостей
-│   │   ├── newsPipeline.ts     # Пайплайн обработки
-│   │   └── parsers/            # Модуль парсеров
+│   │   ├── fetchToolNews.ts     # Получение новостей (legacy)
+│   │   ├── newContentChecker.ts # URL-based детекция нового контента
+│   │   ├── newsPipeline.ts      # Пайплайн обработки
+│   │   ├── digestGenerator.ts   # Генерация дайджеста через LLM
+│   │   ├── telegramPublisher.ts # Публикация в Telegram
+│   │   ├── llm/                 # LLM провайдеры
+│   │   │   ├── index.ts
+│   │   │   ├── geminiProvider.ts
+│   │   │   └── openaiProvider.ts
+│   │   └── parsers/             # Модуль парсеров
 │   │       ├── index.ts
 │   │       ├── types.ts
 │   │       ├── utils.ts
@@ -39,7 +50,44 @@ ai-tools/
 │       └── dates.ts
 └── supabase/
     └── migrations/
-        └── 0001_init_schema.sql
+        ├── 0001_init_schema.sql
+        ├── 0002_add_russian_digest.sql
+        ├── 0003_add_digest_tracking.sql
+        └── 0004_add_last_parsed_tracking.sql
+```
+
+## Пайплайн
+
+### Ежедневный запуск (Production)
+
+1. **Vercel Cron** (`api/run-daily-digest.ts`) срабатывает в 06:00 UTC
+2. **URL-based детекция** — сравнивает последний распарсенный URL с текущим
+3. **Сохранение новостей** — новые статьи сохраняются в `news_items`
+4. **Генерация дайджеста** — Gemini 2.5 Flash создаёт summary
+5. **Публикация в Telegram** — дайджест отправляется в канал
+
+### URL-based детекция
+
+Вместо фильтрации по дате, система сравнивает URL последней статьи:
+
+- `last_parsed_url` — URL последней обработанной статьи
+- `last_parsed_at` — дата последней обработки
+- При обнаружении нового URL, все статьи до него считаются новыми
+
+### Ручной запуск
+
+```bash
+# Полный пайплайн
+npx tsx scripts/run-pipeline.ts
+
+# Только генерация дайджеста (из необработанных новостей)
+npx tsx scripts/generate-digest.ts --limit 20
+
+# Генерация и публикация
+npx tsx scripts/generate-digest.ts --limit 20 --publish
+
+# Публикация существующего дайджеста
+npx tsx scripts/publish-telegram.ts
 ```
 
 ## Парсеры новостей
@@ -132,39 +180,82 @@ FETCH_RETRY_COUNT=2
 ## Скрипты
 
 ```bash
-# Запуск пайплайна сбора новостей
-npm run dev
-# или
+# Запуск полного пайплайна
 npx tsx scripts/run-pipeline.ts
+
+# Генерация дайджеста из необработанных новостей
+npx tsx scripts/generate-digest.ts --limit 20 --publish
+
+# Публикация в Telegram
+npx tsx scripts/publish-telegram.ts
+
+# Тест URL-based детекции
+npx tsx scripts/test-new-content.ts
+
+# Просмотр дайджеста
+npx tsx scripts/view-digest.ts
 
 # Тестирование парсеров
 npx tsx scripts/test-parsers.ts
 
-# Проверка данных в БД
-npx tsx scripts/test-fetch-news.ts
+# Отладка БД
+npx tsx scripts/debug-db.ts
 
 # Наполнение БД инструментами
 npm run seed
 
-# Обновление RSS-фидов в БД
-npx tsx scripts/update-rss-feeds.ts
+# Применение миграций
+npx tsx scripts/run-migrations.ts
 ```
 
 ## База данных
 
 ### Таблицы
 
-- `tools` — AI-инструменты
-- `news_items` — новости
+- `tools` — AI-инструменты (с `last_parsed_url`, `last_parsed_at`)
+- `news_items` — новости (с `digest_date` для отслеживания)
 - `daily_digests` — ежедневные дайджесты
 
 ### Миграции
 
-Миграции находятся в `supabase/migrations/`
+Миграции находятся в `supabase/migrations/`:
+
+- `0001_init_schema.sql` — базовая схема
+- `0002_add_russian_digest.sql` — поле для русского дайджеста
+- `0003_add_digest_tracking.sql` — отслеживание включения в дайджест
+- `0004_add_last_parsed_tracking.sql` — URL-based детекция
 
 ---
 
 # Changelog
+
+## [0.5.0] - 2025-01-19
+
+### Changed
+
+- Рефакторинг проекта — удалены неиспользуемые скрипты
+- Перевод на русский убран для экономии токенов LLM
+- Все скрипты обновлены для работы только с английским дайджестом
+
+### Removed
+
+- `scripts/test-digest.ts` — устаревший
+- `scripts/run-rolling-digest.ts` — дублировал generate-digest.ts
+- `scripts/test-fetch-news.ts` — функционал покрыт debug-db.ts
+
+## [0.4.0] - 2025-01-18
+
+### Added
+
+- URL-based детекция нового контента (вместо date-based)
+- Миграция `0004_add_last_parsed_tracking.sql`
+- Сервис `newContentChecker.ts`
+- Скрипт `test-new-content.ts`
+
+### Changed
+
+- `newsPipeline.ts` — добавлена опция `useUrlBasedDetection` (по умолчанию: true)
+- Пайплайн теперь сравнивает URL вместо дат
 
 ## [0.3.0] - 2025-11-26
 

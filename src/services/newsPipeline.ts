@@ -208,9 +208,8 @@ export async function runDailyDigestPipeline(
                 errors.push(...result.errors);
             }
 
-            // Publish cached digest to Telegram if requested (prefer Russian version)
-            const digestToPublish =
-                existingDigest.summary_md_ru || existingDigest.summary_md;
+            // Publish cached digest to Telegram
+            const digestToPublish = existingDigest.summary_md;
             if (shouldPublish && digestToPublish) {
                 console.log(
                     "\n[pipeline] Step 3: Publishing cached digest to Telegram..."
@@ -275,20 +274,19 @@ export async function runDailyDigestPipeline(
             );
         }
 
-        // Step 3: Generate daily digest using LLM
         console.log("\n[pipeline] Step 3: Generating daily digest via LLM...");
 
         const newsForDigest = await getTodayNews(dateStr);
-        let generatedSummaryMdRu: string | null = null;
+        let generatedSummary: string | null = null;
 
         if (newsForDigest.length > 0) {
             console.log(
                 `[pipeline] Found ${newsForDigest.length} news items for digest generation`
             );
 
-            // Generate digest using LLM (both EN and RU)
+            // Generate digest using LLM
             const digest = await generateDailyDigest(newsForDigest, dateStr);
-            generatedSummaryMdRu = digest.summaryMdRu;
+            generatedSummary = digest.summaryMd;
 
             // Save digest to database
             await saveDailyDigest({
@@ -307,13 +305,13 @@ export async function runDailyDigestPipeline(
             );
         }
 
-        // Step 4: Publish to Telegram if requested (Russian version)
-        if (shouldPublish && generatedSummaryMdRu) {
+        // Step 4: Publish to Telegram if requested
+        if (shouldPublish && generatedSummary) {
             console.log(
-                "\n[pipeline] Step 4: Publishing digest to Telegram (Russian)..."
+                "\n[pipeline] Step 4: Publishing digest to Telegram..."
             );
             const telegramResult = await publishToTelegram(
-                generatedSummaryMdRu,
+                generatedSummary,
                 dateStr
             );
             if (telegramResult.success) {
@@ -508,10 +506,10 @@ export async function runRollingDigestPipeline(
         }
 
         // Step 5: Publish to Telegram
-        if (shouldPublish && digest.summaryMdRu) {
+        if (shouldPublish && digest.summaryMd) {
             console.log("\n[pipeline] Step 5: Publishing to Telegram...");
             const telegramResult = await publishToTelegram(
-                digest.summaryMdRu,
+                digest.summaryMd,
                 today
             );
             if (telegramResult.success) {

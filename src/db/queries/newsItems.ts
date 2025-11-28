@@ -212,7 +212,7 @@ export async function getNewsForDigest(
     );
 
     // Fetch recent unprocessed news
-    let recentQuery = supabase
+    const recentQuery = supabase
         .from("news_items")
         .select("*")
         .is("digest_date", null)

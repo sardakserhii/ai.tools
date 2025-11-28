@@ -107,7 +107,7 @@ export class AnthropicParser implements NewsParser {
             const element = el as Element;
             const $el = $(element);
 
-            let $link = $el.is("a") ? $el : $el.find("a").first();
+            const $link = $el.is("a") ? $el : $el.find("a").first();
             const href = $link.attr("href") || "";
 
             // Skip invalid URLs
@@ -456,7 +456,7 @@ export class ReplitParser implements NewsParser {
             const $el = $(element);
 
             let href = "";
-            let $container = $el;
+            const $container = $el;
 
             if ($el.is("a")) {
                 href = $el.attr("href") || "";

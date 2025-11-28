@@ -2,9 +2,8 @@
  * Script to publish a daily digest to Telegram
  *
  * Usage:
- *   npx tsx scripts/publish-telegram.ts                 # Publish today's digest (Russian)
+ *   npx tsx scripts/publish-telegram.ts                 # Publish today's digest
  *   npx tsx scripts/publish-telegram.ts 2025-01-15      # Publish specific date's digest
- *   npx tsx scripts/publish-telegram.ts --en            # Publish English version
  *   npx tsx scripts/publish-telegram.ts --generate      # Generate and publish (don't use cache)
  *   npx tsx scripts/publish-telegram.ts --test          # Test Telegram connection
  */
@@ -39,15 +38,13 @@ async function main() {
     }
 
     // Check for flags
-    const useEnglish = args.includes("--en");
     const generateFresh = args.includes("--generate");
-    const lang = useEnglish ? "English" : "Russian";
 
     // Get date from arguments or use today
     const dateArg = args.find((arg) => !arg.startsWith("--"));
     const date = dateArg || formatDateISO(new Date());
 
-    console.log(`📰 Publishing ${lang} digest for ${date} to Telegram...\n`);
+    console.log(`📰 Publishing digest for ${date} to Telegram...\n`);
 
     let summaryToPublish: string;
 
@@ -62,10 +59,10 @@ async function main() {
         }
 
         const digest = await generateDailyDigest(news, date);
-        summaryToPublish = useEnglish ? digest.summaryMd : digest.summaryMdRu;
+        summaryToPublish = digest.summaryMd;
 
         console.log(
-            `\n📝 Generated ${lang} digest (${summaryToPublish.length} chars)\n`
+            `\n📝 Generated digest (${summaryToPublish.length} chars)\n`
         );
     } else {
         // Fetch the digest from database
@@ -74,7 +71,7 @@ async function main() {
         if (!digest) {
             console.error(`❌ No digest found for ${date}`);
             console.log("\nHint: Run the digest generation first:");
-            console.log(`  npx tsx scripts/test-digest.ts ${date}`);
+            console.log(`  npx tsx scripts/generate-digest.ts`);
             console.log("\nOr generate and publish directly:");
             console.log(
                 `  npx tsx scripts/publish-telegram.ts ${date} --generate`
@@ -82,19 +79,13 @@ async function main() {
             process.exit(1);
         }
 
-        // Select the right version
-        summaryToPublish = useEnglish
-            ? digest.summary_md
-            : digest.summary_md_ru || digest.summary_md;
+        // Use the digest (now only English)
+        summaryToPublish = digest.summary_md;
 
         console.log("📝 Digest found:");
         console.log(`   - Date: ${digest.date}`);
-        console.log(`   - Language: ${lang}`);
         console.log(`   - Tools: ${digest.tools_list?.join(", ") || "none"}`);
-        console.log(`   - Length: ${summaryToPublish.length} characters`);
-        console.log(
-            `   - Has Russian: ${digest.summary_md_ru ? "yes" : "no"}\n`
-        );
+        console.log(`   - Length: ${summaryToPublish.length} characters\n`);
     }
 
     // Publish to Telegram

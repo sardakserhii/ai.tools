@@ -110,13 +110,12 @@ async function main() {
 
     console.log("\n📝 Digest generated:");
     console.log(`   - Tools: ${digest.toolsList.join(", ")}`);
-    console.log(`   - English: ${digest.summaryMd.length} chars`);
-    console.log(`   - Russian: ${digest.summaryMdRu.length} chars`);
+    console.log(`   - Length: ${digest.summaryMd.length} chars`);
 
     // Preview
-    console.log("\n--- PREVIEW (Russian) ---");
-    console.log(digest.summaryMdRu.substring(0, 500));
-    if (digest.summaryMdRu.length > 500) {
+    console.log("\n--- PREVIEW ---");
+    console.log(digest.summaryMd.substring(0, 500));
+    if (digest.summaryMd.length > 500) {
         console.log("...[truncated]");
     }
     console.log("--- END PREVIEW ---\n");
@@ -146,7 +145,7 @@ async function main() {
     // Publish to Telegram
     if (shouldPublish) {
         console.log("\n📤 Publishing to Telegram...");
-        const result = await publishToTelegram(digest.summaryMdRu, today);
+        const result = await publishToTelegram(digest.summaryMd, today);
         if (result.success) {
             console.log(
                 `✅ Published to Telegram (Message ID: ${result.messageId})`
