@@ -19,7 +19,10 @@ import {
     getUndigestedNews,
     markNewsAsDigested,
 } from "../src/db/queries/newsItems.js";
-import { saveDailyDigest, getDailyDigest } from "../src/db/queries/dailyDigest.js";
+import {
+    saveDailyDigest,
+    getDailyDigest,
+} from "../src/db/queries/dailyDigest.js";
 import { generateDailyDigest } from "../src/services/digestGenerator.js";
 import { publishToTelegram } from "../src/services/telegramPublisher.js";
 import { formatDateISO } from "../src/utils/dates.js";
@@ -50,7 +53,9 @@ async function main() {
 
         // Show existing digest info
         console.log("📝 Existing digest:");
-        console.log(`   - Tools: ${existingDigest.tools_list?.join(", ") || "none"}`);
+        console.log(
+            `   - Tools: ${existingDigest.tools_list?.join(", ") || "none"}`
+        );
         console.log(`   - Length: ${existingDigest.summary_md.length} chars`);
         console.log(
             `   - Has Russian: ${existingDigest.summary_md_ru ? "yes" : "no"}`
@@ -62,7 +67,9 @@ async function main() {
                 existingDigest.summary_md_ru || existingDigest.summary_md;
             const result = await publishToTelegram(summaryToPublish, today);
             if (result.success) {
-                console.log(`✅ Published to Telegram (Message ID: ${result.messageId})`);
+                console.log(
+                    `✅ Published to Telegram (Message ID: ${result.messageId})`
+                );
             } else {
                 console.error(`❌ Failed to publish: ${result.error}`);
             }
@@ -83,12 +90,15 @@ async function main() {
     }
 
     console.log(`\n📊 Found ${news.length} undigested news items:`);
-    
+
     // Group by tool
-    const byTool = news.reduce((acc, item) => {
-        acc[item.tool_name] = (acc[item.tool_name] || 0) + 1;
-        return acc;
-    }, {} as Record<string, number>);
+    const byTool = news.reduce(
+        (acc, item) => {
+            acc[item.tool_name] = (acc[item.tool_name] || 0) + 1;
+            return acc;
+        },
+        {} as Record<string, number>
+    );
 
     for (const [tool, count] of Object.entries(byTool)) {
         console.log(`   - ${tool}: ${count}`);
@@ -138,7 +148,9 @@ async function main() {
         console.log("\n📤 Publishing to Telegram...");
         const result = await publishToTelegram(digest.summaryMdRu, today);
         if (result.success) {
-            console.log(`✅ Published to Telegram (Message ID: ${result.messageId})`);
+            console.log(
+                `✅ Published to Telegram (Message ID: ${result.messageId})`
+            );
         } else {
             console.error(`❌ Failed to publish: ${result.error}`);
         }

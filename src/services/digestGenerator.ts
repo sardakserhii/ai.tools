@@ -7,7 +7,7 @@ import type { NewsItemWithTool } from "../db/types.js";
 export interface DigestResult {
     /** English markdown summary */
     summaryMd: string;
-    /** Russian markdown summary */
+    /** Russian markdown summary (same as English, translation disabled) */
     summaryMdRu: string;
     /** Short English summary (for notifications) */
     summaryShort: string;
@@ -42,20 +42,6 @@ TONE:
 - Professional but engaging
 - Focus on practical implications
 - Be concise - Telegram users scroll quickly`;
-
-/**
- * System prompt for Russian translation
- */
-const TRANSLATION_PROMPT = `You are a professional translator specializing in tech content.
-Translate the following AI news digest from English to Russian.
-
-CRITICAL RULES:
-- Keep ALL formatting exactly the same (emojis, bold, italic, line breaks)
-- Keep ALL URLs unchanged
-- Keep technical terms and product names in English (Claude, GPT, Midjourney, etc.)
-- Use natural, fluent Russian - not literal translation
-- Maintain the same tone and style
-- Do NOT add or remove any information`;
 
 /**
  * Generate user prompt with news items
@@ -117,60 +103,6 @@ function parseDigestResponse(content: string): {
 }
 
 /**
- * Translate text to Russian using LLM with retry logic
- */
-async function translateToRussian(englishText: string): Promise<string> {
-    console.log("[digestGenerator] Translating digest to Russian...");
-
-    const maxRetries = 2;
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const result = await complete({
-                messages: [
-                    { role: "system", content: TRANSLATION_PROMPT },
-                    {
-                        role: "user",
-                        content: `Translate this digest to Russian:\n\n${englishText}`,
-                    },
-                ],
-                maxTokens: 4000, // Increased for Gemini 2.5's thinking tokens
-                temperature: 0.3, // Lower temperature for more consistent translation
-            });
-
-            if (result.content && result.content.trim().length > 0) {
-                console.log(
-                    `[digestGenerator] Translation completed (${result.content.length} chars)`
-                );
-                return result.content.trim();
-            }
-
-            console.warn(
-                `[digestGenerator] Empty translation on attempt ${attempt}`
-            );
-        } catch (error) {
-            lastError =
-                error instanceof Error ? error : new Error(String(error));
-            console.warn(
-                `[digestGenerator] Translation attempt ${attempt} failed: ${lastError.message}`
-            );
-
-            if (attempt < maxRetries) {
-                // Wait before retry
-                await new Promise((resolve) => setTimeout(resolve, 1000));
-            }
-        }
-    }
-
-    // If all retries failed, return a fallback message
-    console.error(
-        "[digestGenerator] Translation failed after all retries, using fallback"
-    );
-    return `📰 *AI Tools Digest*\n\n_Перевод временно недоступен. Ниже оригинал на английском:_\n\n${englishText}`;
-}
-
-/**
  * Options for digest generation
  */
 export interface DigestOptions {
@@ -182,12 +114,12 @@ export interface DigestOptions {
 
 /**
  * Generate a daily digest from news items using the configured LLM provider
- * Creates both English and Russian versions
+ * Now generates only English version to save tokens
  *
  * @param news Array of news items with tool information
  * @param date Date string in YYYY-MM-DD format
  * @param options Additional options for generation
- * @returns Generated digest with markdown summaries in both languages, short summary, and tools list
+ * @returns Generated digest with markdown summary, short summary, and tools list
  */
 export async function generateDailyDigest(
     news: NewsItemWithTool[],
@@ -204,7 +136,7 @@ export async function generateDailyDigest(
         console.log("[digestGenerator] No news items to process");
         return {
             summaryMd: `📰 *AI Tools Digest — ${date}*\n\nNo news items were collected for this date.`,
-            summaryMdRu: `📰 *AI Tools Digest — ${date}*\n\nНовостей за эту дату не найдено.`,
+            summaryMdRu: `📰 *AI Tools Digest — ${date}*\n\nNo news items were collected for this date.`,
             summaryShort: `No AI news updates for ${date}.`,
             toolsList: [],
         };
@@ -224,36 +156,31 @@ Please structure the digest with:
     const toolsList = extractToolsList(news);
 
     try {
-        // Step 1: Generate English digest
-        console.log("[digestGenerator] Step 1: Generating English digest...");
+        // Generate English digest (no translation to save tokens)
+        console.log("[digestGenerator] Generating English digest...");
         const englishResult = await complete({
             messages: [
                 { role: "system", content: SYSTEM_PROMPT },
                 { role: "user", content: userPrompt },
             ],
-            maxTokens: 4000, // Increased for Gemini 2.5's thinking tokens
+            maxTokens: 4000,
             temperature: 0.7,
         });
 
         console.log(
-            `[digestGenerator] English digest received from ${englishResult.provider}/${englishResult.model} (${englishResult.content.length} chars)`
+            `[digestGenerator] Digest received from ${englishResult.provider}/${englishResult.model} (${englishResult.content.length} chars)`
         );
 
         const { summaryMd, summaryShort } = parseDigestResponse(
             englishResult.content
         );
 
-        // Step 2: Translate to Russian
-        console.log("[digestGenerator] Step 2: Translating to Russian...");
-        const summaryMdRu = await translateToRussian(summaryMd);
-
-        console.log(
-            "[digestGenerator] Digest generated successfully in both languages"
-        );
+        // Use English for both fields (translation disabled to save tokens)
+        console.log("[digestGenerator] Digest generated successfully");
 
         return {
             summaryMd,
-            summaryMdRu,
+            summaryMdRu: summaryMd, // Same as English
             summaryShort,
             toolsList,
         };

@@ -353,7 +353,9 @@ export async function getUndigestedNews(
             "[newsItems] Error fetching undigested news:",
             newsError.message
         );
-        throw new Error(`Failed to fetch undigested news: ${newsError.message}`);
+        throw new Error(
+            `Failed to fetch undigested news: ${newsError.message}`
+        );
     }
 
     if (!newsItems || newsItems.length === 0) {
