@@ -330,6 +330,70 @@ export async function markNewsAsDigested(
 }
 
 /**
+ * Get all undigested news items (not yet included in any digest)
+ * This is used for the new URL-based detection logic
+ *
+ * @param limit Maximum number of items to return
+ * @returns Array of news items with tool information
+ */
+export async function getUndigestedNews(
+    limit: number = 50
+): Promise<NewsItemWithTool[]> {
+    console.log(`[newsItems] Fetching undigested news (limit: ${limit})`);
+
+    const { data: newsItems, error: newsError } = await supabase
+        .from("news_items")
+        .select("*")
+        .is("digest_date", null)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+    if (newsError) {
+        console.error(
+            "[newsItems] Error fetching undigested news:",
+            newsError.message
+        );
+        throw new Error(`Failed to fetch undigested news: ${newsError.message}`);
+    }
+
+    if (!newsItems || newsItems.length === 0) {
+        console.log("[newsItems] No undigested news found");
+        return [];
+    }
+
+    const typedNewsItems = newsItems as NewsItem[];
+
+    // Get unique tool IDs
+    const toolIds = [...new Set(typedNewsItems.map((n) => n.tool_id))];
+
+    // Fetch tool information
+    const { data: tools, error: toolsError } = await supabase
+        .from("tools")
+        .select("id, name")
+        .in("id", toolIds);
+
+    if (toolsError) {
+        console.error("[newsItems] Error fetching tools:", toolsError.message);
+        throw new Error(`Failed to fetch tools: ${toolsError.message}`);
+    }
+
+    // Create a map for quick tool name lookup
+    const toolMap = new Map<string, string>();
+    (tools as Pick<Tool, "id" | "name">[] | null)?.forEach((t) => {
+        toolMap.set(t.id, t.name);
+    });
+
+    // Combine news with tool names
+    const result: NewsItemWithTool[] = typedNewsItems.map((item) => ({
+        ...item,
+        tool_name: toolMap.get(item.tool_id) ?? "Unknown",
+    }));
+
+    console.log(`[newsItems] Found ${result.length} undigested news items`);
+    return result;
+}
+
+/**
  * Get statistics about unprocessed news
  */
 export async function getUnprocessedNewsStats(): Promise<{
