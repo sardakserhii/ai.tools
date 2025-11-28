@@ -25,6 +25,35 @@ export async function getActiveTools(): Promise<Tool[]> {
 }
 
 /**
+ * Update the last parsed URL for a tool
+ * This is used to track what was the latest news item we've seen
+ * @param toolId Tool identifier
+ * @param lastUrl URL of the latest news item
+ */
+export async function updateToolLastParsedUrl(
+    toolId: string,
+    lastUrl: string
+): Promise<void> {
+    const { error } = await supabase
+        .from("tools")
+        .update({
+            last_parsed_url: lastUrl,
+            last_parsed_at: new Date().toISOString(),
+        })
+        .eq("id", toolId);
+
+    if (error) {
+        console.error(
+            `[tools] Error updating last_parsed_url for ${toolId}:`,
+            error.message
+        );
+        throw new Error(`Failed to update last_parsed_url: ${error.message}`);
+    }
+
+    console.log(`[tools] Updated last_parsed_url for ${toolId}: ${lastUrl}`);
+}
+
+/**
  * Get a specific tool by ID
  * @param id Tool identifier
  * @returns Tool entity or null if not found

@@ -15,6 +15,8 @@ export interface Tool {
     news_url: string | null;
     lang: string;
     is_active: boolean;
+    last_parsed_url: string | null;
+    last_parsed_at: string | null;
     created_at: string;
     updated_at: string;
 }

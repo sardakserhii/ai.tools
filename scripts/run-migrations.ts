@@ -23,6 +23,16 @@ const migrations = [
             ON news_items(published_at DESC, digest_date);
         `,
     },
+    {
+        name: "0004_add_last_parsed_tracking",
+        sql: `
+            ALTER TABLE tools ADD COLUMN IF NOT EXISTS last_parsed_url TEXT;
+            ALTER TABLE tools ADD COLUMN IF NOT EXISTS last_parsed_at TIMESTAMPTZ;
+            
+            COMMENT ON COLUMN tools.last_parsed_url IS 'URL of the last parsed news item - used to detect new content';
+            COMMENT ON COLUMN tools.last_parsed_at IS 'When the last parsing was done';
+        `,
+    },
 ];
 
 async function main() {

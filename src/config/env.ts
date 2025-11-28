@@ -44,11 +44,17 @@ const envSchema = z.object({
 
     // OpenAI settings (optional if using Gemini)
     OPENAI_API_KEY: z.string().optional(),
-    OPENAI_MODEL: z.string().transform((val) => val.trim()).default("gpt-4o-mini"),
+    OPENAI_MODEL: z
+        .string()
+        .transform((val) => val.trim())
+        .default("gpt-4o-mini"),
 
     // Google Gemini settings
     GEMINI_API_KEY: z.string().optional(),
-    GEMINI_MODEL: z.string().transform((val) => val.trim()).default("gemini-1.5-flash"),
+    GEMINI_MODEL: z
+        .string()
+        .transform((val) => val.trim())
+        .default("gemini-1.5-flash"),
 
     // LLM Provider: "openai" or "gemini"
     LLM_PROVIDER: z
@@ -58,8 +64,14 @@ const envSchema = z.object({
         .default("gemini"),
 
     // Telegram settings
-    TELEGRAM_BOT_TOKEN: z.string().transform((val) => val.trim()).optional(),
-    TELEGRAM_CHANNEL_ID: z.string().transform((val) => val.trim()).optional(),
+    TELEGRAM_BOT_TOKEN: z
+        .string()
+        .transform((val) => val.trim())
+        .optional(),
+    TELEGRAM_CHANNEL_ID: z
+        .string()
+        .transform((val) => val.trim())
+        .optional(),
 });
 
 /**

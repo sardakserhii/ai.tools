@@ -8,6 +8,7 @@ import {
 } from "../db/queries/newsItems.js";
 import { saveDailyDigest, getDailyDigest } from "../db/queries/dailyDigest.js";
 import { fetchToolNews } from "./fetchToolNews.js";
+import { fetchNewToolNews } from "./newContentChecker.js";
 import { generateDailyDigest } from "./digestGenerator.js";
 import { publishToTelegram } from "./telegramPublisher.js";
 import { formatDateISO, getDaysAgo } from "../utils/dates.js";
@@ -42,6 +43,8 @@ export interface PipelineOptions {
     useRollingWindow?: boolean;
     /** Days to look back for recent news in rolling mode (default: 3) */
     recentDays?: number;
+    /** Use URL-based new content detection instead of date filtering (default: true) */
+    useUrlBasedDetection?: boolean;
 }
 
 /**
@@ -55,9 +58,11 @@ interface FetchNewsResult {
 
 /**
  * Fetch news from all active tools and insert into database
+ * Uses URL-based detection to find new content (compares with last_parsed_url)
  */
 async function fetchAndInsertNews(
-    _targetDateStr: string
+    _targetDateStr: string,
+    useUrlBasedDetection: boolean = true
 ): Promise<FetchNewsResult> {
     const errors: string[] = [];
     let totalNewsCount = 0;
@@ -72,14 +77,10 @@ async function fetchAndInsertNews(
         return { totalNews: 0, toolsProcessed: 0, errors: [] };
     }
 
-    console.log(`[pipeline] Found ${tools.length} active tools to process\n`);
-
-    // Fetch news for each tool
-    console.log("[pipeline] Fetching news for each tool...");
-
-    // Look for news from the last 7 days to ensure we don't miss anything
-    // Some parsers may have delayed updates or timezone differences
-    const sinceDate = getDaysAgo(7);
+    console.log(`[pipeline] Found ${tools.length} active tools to process`);
+    console.log(
+        `[pipeline] Detection mode: ${useUrlBasedDetection ? "URL-based (new content)" : "Date-based (legacy)"}\n`
+    );
 
     const allNewsItems: NewsItemInput[] = [];
 
@@ -87,10 +88,19 @@ async function fetchAndInsertNews(
         try {
             console.log(`\n[pipeline] Processing: ${tool.name} (${tool.id})`);
 
-            const parsedNews = await fetchToolNews(tool, sinceDate);
+            let parsedNews: ParsedNewsItem[];
+
+            if (useUrlBasedDetection) {
+                // New URL-based detection: only fetch items newer than last_parsed_url
+                parsedNews = await fetchNewToolNews(tool, true);
+            } else {
+                // Legacy date-based filtering
+                const sinceDate = getDaysAgo(7);
+                parsedNews = await fetchToolNews(tool, sinceDate);
+            }
 
             if (parsedNews.length === 0) {
-                console.log(`[pipeline] No news found for ${tool.name}`);
+                console.log(`[pipeline] No new content for ${tool.name}`);
                 continue;
             }
 
@@ -102,7 +112,7 @@ async function fetchAndInsertNews(
             toolsProcessed++;
 
             console.log(
-                `[pipeline] Found ${newsItems.length} news items for ${tool.name}`
+                `[pipeline] Found ${newsItems.length} NEW items for ${tool.name}`
             );
         } catch (error) {
             const errorMsg = `Error processing ${tool.name}: ${error instanceof Error ? error.message : String(error)}`;
@@ -153,6 +163,7 @@ export async function runDailyDigestPipeline(
         forceRegenerate = false,
         skipNewsFetch = false,
         publishToTelegram: shouldPublish = false,
+        useUrlBasedDetection = true, // Default to new URL-based detection
     } = options;
 
     const dateStr = formatDateISO(targetDate);
@@ -162,6 +173,7 @@ export async function runDailyDigestPipeline(
     console.log(`[pipeline] Force regenerate: ${forceRegenerate}`);
     console.log(`[pipeline] Skip news fetch: ${skipNewsFetch}`);
     console.log(`[pipeline] Publish to Telegram: ${shouldPublish}`);
+    console.log(`[pipeline] URL-based detection: ${useUrlBasedDetection}`);
     console.log(`========================================\n`);
 
     const errors: string[] = [];
@@ -187,7 +199,10 @@ export async function runDailyDigestPipeline(
                 console.log(
                     "\n[pipeline] Step 2: Fetching news (updating database)..."
                 );
-                const result = await fetchAndInsertNews(dateStr);
+                const result = await fetchAndInsertNews(
+                    dateStr,
+                    useUrlBasedDetection
+                );
                 totalNewsCount = result.totalNews;
                 toolsProcessed = result.toolsProcessed;
                 errors.push(...result.errors);
@@ -247,7 +262,10 @@ export async function runDailyDigestPipeline(
         // Step 2: Fetch and insert news
         if (!skipNewsFetch) {
             console.log("\n[pipeline] Step 2: Fetching and inserting news...");
-            const result = await fetchAndInsertNews(dateStr);
+            const result = await fetchAndInsertNews(
+                dateStr,
+                useUrlBasedDetection
+            );
             totalNewsCount = result.totalNews;
             toolsProcessed = result.toolsProcessed;
             errors.push(...result.errors);
@@ -388,6 +406,8 @@ export async function runRollingDigestPipeline(
         publishToTelegram?: boolean;
         /** Skip marking news as digested (for testing) */
         dryRun?: boolean;
+        /** Use URL-based new content detection (default: true) */
+        useUrlBasedDetection?: boolean;
     } = {}
 ): Promise<RollingDigestResult> {
     const {
@@ -396,6 +416,7 @@ export async function runRollingDigestPipeline(
         fetchNews = true,
         publishToTelegram: shouldPublish = false,
         dryRun = false,
+        useUrlBasedDetection = true,
     } = options;
 
     const errors: string[] = [];
@@ -409,13 +430,17 @@ export async function runRollingDigestPipeline(
     console.log(`[pipeline] Recent window: ${recentDays} days`);
     console.log(`[pipeline] Missed window: ${missedDays} days`);
     console.log(`[pipeline] Dry run: ${dryRun}`);
+    console.log(`[pipeline] URL-based detection: ${useUrlBasedDetection}`);
     console.log(`========================================\n`);
 
     try {
         // Step 1: Optionally fetch fresh news
         if (fetchNews) {
             console.log("[pipeline] Step 1: Fetching fresh news...");
-            const fetchResult = await fetchAndInsertNews(today);
+            const fetchResult = await fetchAndInsertNews(
+                today,
+                useUrlBasedDetection
+            );
             console.log(
                 `[pipeline] Fetched ${fetchResult.totalNews} news items`
             );
